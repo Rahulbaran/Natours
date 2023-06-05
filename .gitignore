@@ -16,3 +16,6 @@ dist
 # Log Files
 *.log
 *.sql
+
+# General Purpose directories
+data/import-data.js
