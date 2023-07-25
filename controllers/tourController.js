@@ -102,35 +102,39 @@ exports.deleteTour = async (req, res) => {
 exports.getTourStats = async (req, res) => {
   try {
     const stats = await Tour.aggregate([
-      {
-        $match: { ratingAverage: { $gte: 4.5 } }
-      },
+      // { $sort: { ratingsQuantity: -1 } },
+      // { $match: { $or: [{ difficulty: "easy" }, { difficulty: "medium" }] } },
+      // {
+      //   $group: {
+      //     _id: null,
+      //     numOfRatings: { $sum: "$ratingsQuantity" }
+      //   }
+      // }
+      // { $count: "numOfRatings" }
+      // { $match: { ratingAverage: { $gte: 4.5 } } },
       {
         $group: {
+          _id: { $toUpper: "$difficulty" },
           // _id: "$price",
           // _id: "$ratingAverage",
-          // _id: "$difficulty",
-          _id: { $toUpper: "$difficulty" },
-          numOfTours: { $sum: 1 },
-          numRatings: { $sum: "$ratingsQuantity" },
           avgRating: { $avg: "$ratingAverage" },
           avgPrice: { $avg: "$price" },
           minPrice: { $min: "$price" },
-          maxPrice: { $max: "$price" }
+          maxPrice: { $max: "$price" },
+          maxDuration: { $max: "$duration" },
+          maxRating: { $max: "$ratingAverage" },
+          totalTours: { $sum: 1 },
+          totalRatings: { $sum: "$ratingsQuantity" }
         }
       },
-      {
-        $sort: { avgPrice: 1 }
-      }
-      // {
-      //   $count: "minPrice"
-      // },
-      // {
-      //   $match: { _id: "EASY" }
-      // }
+      { $sort: { avgRating: -1 } }
+      // { $match: { _id: { $ne: "EASY" } } }
     ]);
 
-    res.status(200).json({ status: "success", data: { stats } });
+    res.status(200).json({
+      status: "success",
+      data: stats
+    });
   } catch (error) {
     res.status(404).json({
       status: "fail",
@@ -141,8 +145,35 @@ exports.getTourStats = async (req, res) => {
 
 exports.getMonthlyPlan = async (req, res) => {
   try {
-    const year = +req.params.year;
-    const plan = await Tour.aggregate([{}]);
+    const year = req.params.year * 1;
+    const plan = await Tour.aggregate([
+      {
+        $unwind: {
+          path: "$startDates",
+          includeArrayIndex: "arrayIndex",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $match: {
+          startDates: {
+            $gte: new Date(`${year}-01-01`),
+            $lte: new Date(`${year}-12-31`)
+          }
+        }
+      },
+      {
+        $group: {
+          _id: { $month: "$startDates" },
+          toursPerMonth: { $sum: 1 },
+          tours: { $push: "$name" }
+        }
+      },
+      { $addFields: { month: "$_id" } },
+      { $project: { _id: 0 } },
+      { $sort: { toursPerMonth: -1 } },
+      { $limit: 3 }
+    ]);
 
     res.status(200).json({ status: "success", data: { plan } });
   } catch (error) {
@@ -152,3 +183,57 @@ exports.getMonthlyPlan = async (req, res) => {
     });
   }
 };
+
+// exports.getTourStats = async (req, res) => {
+//   try {
+//     const stats = await Tour.aggregate([
+//       {
+//         $match: { ratingAverage: { $gte: 4.5 } }
+//       },
+//       {
+//         $group: {
+//           // _id: "$price",
+//           // _id: "$ratingAverage",
+//           // _id: "$difficulty",
+//           _id: { $toUpper: "$difficulty" },
+//           numOfTours: { $sum: 1 },
+//           numRatings: { $sum: "$ratingsQuantity" },
+//           avgRating: { $avg: "$ratingAverage" },
+//           avgPrice: { $avg: "$price" },
+//           minPrice: { $min: "$price" },
+//           maxPrice: { $max: "$price" }
+//         }
+//       },
+//       {
+//         $sort: { avgPrice: 1 }
+//       }
+//       // {
+//       //   $count: "minPrice"
+//       // },
+//       // {
+//       //   $match: { _id: "EASY" }
+//       // }
+//     ]);
+
+//     res.status(200).json({ status: "success", data: { stats } });
+//   } catch (error) {
+//     res.status(404).json({
+//       status: "fail",
+//       message: error
+//     });
+//   }
+// };
+
+// exports.getMonthlyPlan = async (req, res) => {
+//   try {
+//     const year = +req.params.year;
+//     const plan = await Tour.aggregate([{}]);
+
+//     res.status(200).json({ status: "success", data: { plan } });
+//   } catch (error) {
+//     res.status(404).json({
+//       status: "fail",
+//       message: error
+//     });
+//   }
+// };
